@@ -3,6 +3,9 @@ title: "Pertemuan 1 - Pemulusan"
 author: Fadly Mochammad Taufiq
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 ## Library / Packages
 ```{r}
 library("forecast")
@@ -14,7 +17,7 @@ library(rio)
 
 ## Impor Data
 ```{r}
-data_minyak <- import("D:/Kuliah/Semester 5/MPDW/Pertemuan 1/Tugas R1/Data Minyak.csv")
+data_minyak <- import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Data%20Minyak.csv")
 ```
 
 ## Eksplorasi Data
