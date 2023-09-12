@@ -25,19 +25,15 @@ datasaya<- datasaya[1:200 ,2:6]
 datasaya
 str(datasaya)
 # Peubah yang digunakan
-open <- datasaya$open
 high <- datasaya$High
 low <- datasaya$low
-close <- datasaya$close
 volume <- datasaya$volume
 ```
 
 # Mengubah data menjadi data deret waktu
 ```{r}
-open.ts <- ts(open)
 high.ts <- ts(high)
 low.ts <- ts(low)
-close.ts <- ts(close)
 volume.ts <- ts(volume)
 
 ```
