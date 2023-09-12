@@ -20,7 +20,7 @@ library(rio)
 
 # Input data
 ```{r}
-datasaya <- import(""https://raw.githubusercontent.com/imomenujung/MPDW/main/Data%20Minyak.csv"")
+datasaya <- import(https://raw.githubusercontent.com/imomenujung/MPDW/main/Pertemuan%20-2/RepsolStockData20Years.csv)
 datasaya<- datasaya[1:200 ,2:6]
 datasaya
 str(datasaya)
