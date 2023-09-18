@@ -1,1 +1,180 @@
+---
+title: "Tugas-mpdw3"
+author: Fadly Mochammad Taufiq
+output: html_document
+date: "2023-09-18"
+---
+
+#aktifkan package
+```{r}
+library(dLagM)
+library(dynlm)
+library(MLmetrics)
+library(lmtest)
+library(car)
+library(rio)
+library(forecast)
+```
+
+#Input Data
+```{r}
+Data <- import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Pertemuan-3/RepsolStockData20Years.csv")
+Data <- Data[1:500, ]
+```
+
+#mempersiapkan data
+```{r}
+#mengambil peubah open dan volume
+Data <- subset(Data, select = c(open, volume))
+
+#mengubah nama colom open menjadi Yt dan volume menjadi Xt
+library(dplyr)
+Data <- Data %>%
+  rename(Xt = volume, Yt = open)
+
+#Split data
+train<-Data[1:400,]
+test<-Data[401:500,]
+
+#data time series
+train.ts<-ts(train)
+test.ts<-ts(test)
+Data.ts<-ts(Data)
+Data.ts
+```
+
+#model koyck
+```{r}
+#pemodelan
+model.koyck <- koyckDlm(x = train$Xt, y = train$Yt)
+summary(model.koyck)
+AIC(model.koyck)
+BIC(model.koyck)
+```
+Dari hasil tersebut, didapat bahwa peubah $y_{t-1}$ memiliki nilai $P-Value<0.05$. Hal ini menunjukkan bahwa peubah $y_{t-1}$ berpengaruh signifikan terhadap $y$. Adapun model keseluruhannya adalah sebagai berikut
+
+$$
+\hat{Y_t}=(1.372e-01)+(2.359e-09)X_t+(9.899e-01)Y_{t-1}
+$$
+
+Berikut adalah hasil peramalan y untuk 100 periode kedepan menggunakan model koyck
+```{r}
+fore.koyck <- forecast(model = model.koyck, x=test$Xt, h=100)
+fore.koyck
+mape.koyck <- MAPE(fore.koyck$forecasts, test$Yt)
+#akurasi data training
+GoF(model.koyck)
+```
+
+#Regression with Distributed Lag
+
+Pemodelan (Lag=2)
+```{r}
+model.dlm <- dlm(x = train$Xt,y = train$Yt , q = 2)
+summary(model.dlm)
+AIC(model.dlm)
+BIC(model.dlm)
+```
+Dari hasil diatas, didapat bahwa $P-value$ dari intercept dan $x_{t-1}>0.05$. Hal ini menunjukkan bahwa ternyata intercept dan $x_{t-1}$ tidak terlalu berpengaruh signifikan terhadap $y$. Adapun model keseluruhan yang terbentuk adalah sebagai berikut
+
+$$
+\hat{Y_t}=(1.445e+01)+(5.205e-09)X_t+(6.365e-09)X_{t-1}+(5.066e-09)X_{t-2}
+$$
+Berikut merupakan hasil peramalan $y$ untuk 5 periode kedepan
+```{r}
+fore.dlm <- forecast(model = model.dlm, x=test$Xt, h=100)
+fore.dlm
+mape.dlm <- MAPE(fore.dlm$forecast, test$Yt)
+#akurasi data training
+GoF(model.dlm)
+```
+
+penentuan lag optimum 
+```{r}
+finiteDLMauto(formula = Yt ~ Xt,
+              data = data.frame(train), q.min = 1, q.max = 6,
+              model.type = "dlm", error.type = "AIC", trace = FALSE)
+```
+Berdasarkan output tersebut, lag optimum didapatkan ketika lag=6. Selanjutnya dilakukan pemodelan untuk lag=6
+
+model dlm dengan lag optimum
+```{r}
+model.dlm2 <- dlm(x = train$Xt,y = train$Yt , q = 6)
+summary(model.dlm2)
+AIC(model.dlm2)
+BIC(model.dlm2)
+```
+Dari hasil tersebut terdapat beberapa peubah yang berpengaruh signifikan terhadap taraf nyata 5% yaitu $x_{t-2}$ . Adapun keseluruhan model yang terbentuk adalah
+
+$$
+\hat{Y_t}= (1.441e+01)+(2.091e-09)X_t+...+(9.757e-09)X_{t-6}
+$$
+peramalan dan akurasi
+```{r}
+#peramalan
+fore.dlm2 <- forecast(model = model.dlm2, x=test$Xt, h=100)
+mape.dlm2 <- MAPE(fore.dlm2$forecast, test$Yt)
+#akurasi data training
+GoF(model.dlm2)
+```
+
+
+#Model autoregressive
+Pemodelan
+```{r}
+model.ardl <- ardlDlm(x = train$Xt, y = train$Yt, p = 1 , q = 1)
+summary(model.ardl)
+AIC(model.ardl)
+BIC(model.ardl)
+```
+```{r}
+fore.ardl <- forecast(model = model.ardl, x=test$Xt, h=100)
+fore.ardl
+
+mape.ardl <- MAPE(fore.ardl$forecast, test$Yt)
+mape.ardl
+#akurasi data training
+GoF(model.ardl)
+```
+
+LAG OPTIMUM
+penentuan lag optimum
+```{r}
+model.ardl.opt <- ardlBoundOrders(data = data.frame(Data), ic = "AIC", 
+                                  formula = Yt ~ Xt )
+min_p=c()
+for(i in 1:6){
+  min_p[i]=min(model.ardl.opt$Stat.table[[i]])
+}
+q_opt=which(min_p==min(min_p, na.rm = TRUE))
+p_opt=which(model.ardl.opt$Stat.table[[q_opt]] == 
+              min(model.ardl.opt$Stat.table[[q_opt]], na.rm = TRUE))
+data.frame("q_optimum" = q_opt, "p_optimum" = p_opt, 
+           "AIC"=model.ardl.opt$min.Stat)
+```
+Dari tabel di atas, dapat terlihat bahwa nilai AIC terendah didapat ketika $p=1$ dan $q=3$, yaitu sebesar `-285.4785`. Artinya, model autoregressive optimum didapat ketika $p=1$ dan $q=3$.
+
+Selanjutnya dapat dilakukan pemodelan dengan nilai $p$ dan $q$ optimum seperti inisialisasi di langkah sebelumnya.
+
+Perbandingan model
+```{r}
+akurasi <- matrix(c(mape.koyck, mape.dlm, mape.dlm2, mape.ardl))
+row.names(akurasi)<- c("Koyck","DLM 1","DLM 2","Autoregressive")
+colnames(akurasi) <- c("MAPE")
+akurasi
+```
+plot
+```{r}
+par(mfrow=c(1,1))
+plot(test$Xt, test$Yt, type="b", col="black")
+points(test$Xt, fore.koyck$forecasts,col="red")
+lines(test$Xt, fore.koyck$forecasts,col="red")
+points(test$Xt, fore.dlm$forecasts,col="blue")
+lines(test$Xt, fore.dlm$forecasts,col="blue")
+points(test$Xt, fore.dlm2$forecasts,col="orange")
+lines(test$Xt, fore.dlm2$forecasts,col="orange")
+points(test$Xt, fore.ardl$forecasts,col="green")
+lines(test$Xt, fore.ardl$forecasts,col="green")
+legend("topleft",c("aktual", "koyck","DLM 1","DLM 2", "autoregressive"), lty=1, col=c("black","red","blue","orange","green"), cex=0.8)
+```
 
