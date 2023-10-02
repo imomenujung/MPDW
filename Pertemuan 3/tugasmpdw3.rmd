@@ -18,7 +18,7 @@ library(forecast)
 
 #Input Data
 ```{r}
-Data <- import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Pertemuan-3/RepsolStockData20Years.csv")
+Data <- import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Pertemuan%203/RepsolStockData20Years.csv")
 Data <- Data[1:500, ]
 ```
 
