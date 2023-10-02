@@ -19,7 +19,7 @@ library(tseries)
 ```
 ## input data
 ```{r}
-data <-import("C:/Users/ADMIN/Downloads/Data Minyak.csv")
+data <-import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Data%20Minyak.csv")
 data
 ```
 merupakan data perkembangan minyak goreng di kota Bogor tiap minggu dari bulan Mei 2021 - Agustus 2023
