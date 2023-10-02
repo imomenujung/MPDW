@@ -1,0 +1,158 @@
+---
+title: "Tugas Kestasioneran data"
+author: "Fadly Mochammad Taufiq"
+date: "2023-10-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Tugas Kestasioneran Data
+
+## Bangkitkan Packages
+```{r}
+library(rio) 
+library(MASS)
+library(ggplot2)
+library(tseries)
+```
+## input data
+```{r}
+data <-import("C:/Users/ADMIN/Downloads/Data Minyak.csv")
+data
+```
+merupakan data perkembangan minyak goreng di kota Bogor tiap minggu dari bulan Mei 2021 - Agustus 2023
+
+## membentuk data time series
+```{r}
+data.ts<-ts(data$Minyak_Goreng)
+data.ts
+```
+## melihat rata-rata dan ragam
+```{r}
+mean(data.ts)
+var(data.ts)
+```
+## plot time series
+```{r}
+plot_stas <- ggplot(data = data, aes(x = Period, y = Minyak_Goreng)) + geom_line() + theme_bw() +
+  xlab("Obs") + ylab("Yt")
+plot_stas
+```
+Berdasarkan plot time series tersebut, terlihat bahwa data tidak stasioner dalam rataan, ditandai dengan adanya trend pada data dan tidak stasioner dalam ragam, ditandai dengan adanya perbedaan lebar pita pada plot
+
+## plot ACF
+```{r}
+acf(data.ts)
+```
+Berdasarkan plot ACF, terlihat bahwa plot ACF pada data tersebut menurun secara perlahan (*tails off slowly*) yang menandakan data tidak stasioner dalam rataan
+
+## Uji ADF
+```{r}
+adf.test(data.ts)
+```
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.2717 yang lebih besar dari taraf nyata 5% dan menandakan bahwa data tidak stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF
+
+## plot Box-Cox
+```{r}
+#find optimal lambda for Box-Cox transformation 
+bc <- boxcox(Period ~ Minyak_Goreng, data = data)
+(lambda <- bc$x[which.max(bc$y)])
+#SK 
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+Gambar di atas menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **0.5858586** dan pada selang kepercayaan 95% nilai memiliki batas bawah **0.3838384** dan batas atas **0.7878788**. Selang tersebut tidak memuat nilai satu sehingga data belum bisa dikatakan stasioner dalam ragam.
+
+
+## Partisi Data
+
+## Bagian 1
+
+### summary data
+```{r}
+data_bg1 <- data.ts[1:75]
+mean(data_bg1)
+var(data_bg1)
+```
+### plot time series
+```{r}
+plot_bg1 <- ggplot(data = data[1:75,], aes(x = Period, y = Minyak_Goreng)) + geom_line() + theme_bw() +
+  xlab("Obs") + ylab("Yt")
+plot_bg1
+```
+Berdasarkan plot time series tersebut, terlihat bahwa data tidak stasioner dalam rataan, ditandai dengan adanya trend pada data dan tidak stasioner dalam ragam, ditandai dengan adanya perbedaan lebar pita pada plot
+
+### plot ACF
+```{r}
+acf(data_bg1)
+```
+Berdasarkan plot ACF, terlihat bahwa plot ACF pada data tersebut menurun secara perlahan (*tails off slowly*) yang menandakan data tidak stasioner dalam rataan
+
+### Uji ADF
+```{r}
+adf.test(data_bg1)
+```
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar **0.5604** yang lebih besar dari taraf nyata 5% dan menandakan bahwa data tidak stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF
+
+### plot Box-Cox
+```{r}
+#find optimal lambda for Box-Cox transformation 
+bc <- boxcox(Period ~ Minyak_Goreng, data = data[1:75,])
+(lambda <- bc$x[which.max(bc$y)])
+#SK 
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+Gambar di atas menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **0.5454545** dan pada selang kepercayaan 95% nilai memiliki batas bawah **0.3434343** dan batas atas **0.7878788**. Selang tersebut tidak memuat nilai satu sehingga data belum bisa dikatakan stasioner dalam ragam.
+
+
+## Bagian 2
+
+### summary data
+```{r}
+data_bg2 <- data.ts[76:120]
+mean(data_bg2)
+var(data_bg2)
+```
+### plot time series
+```{r}
+plot_bg2 <- ggplot(data = data[76:120,], aes(x = Period, y = Minyak_Goreng)) + geom_line() + theme_bw() +
+  xlab("Obs") + ylab("Yt")
+plot_bg2
+```
+Berdasarkan plot time series tersebut, terlihat bahwa data tidak stasioner dalam rataan, ditandai dengan adanya trend pada data dan tidak stasioner dalam ragam, ditandai dengan adanya perbedaan lebar pita pada plot
+
+### plot ACF
+```{r}
+acf(data_bg2)
+```
+### Uji ADF
+```{r}
+adf.test(data_bg2)
+```
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar **0.01** yang lebih rendah dari taraf nyata 5%. Namun nilai *p-value* terlalu rendah hal ini mungkin karena ada beberapa data yang bernilai sama(konstan) tidak mengalami kenaikan atau penurunan nilai.
+
+### plot Box-Cox
+```{r}
+#find optimal lambda for Box-Cox transformation 
+bc <- boxcox(Period ~ Minyak_Goreng, data = data[41:80,])
+(lambda <- bc$x[which.max(bc$y)])
+#SK 
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+Gambar di atas menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **1.515152** dan pada selang kepercayaan 95% nilai memiliki batas bawah **-0.22222222** dan batas atas **2.00000000**. 
+
+## Kesimpulan
+Baik dari data keseluruhan maupun data partisi dapat disimpulkan bahwa data tidak stasioner baik dalam rataan maupun ragam. Hal ini karena data memiliki tren dan ada juga beberapa nilai dalam data yang bernilai konstan tidak ada kenaikan atau penurunan nilai
