@@ -1,0 +1,249 @@
+---
+title: "Tugas Pemodelan dan Diagnostik Model Arima"
+author: "Fadly Mochammad Taufiq"
+date: "2023-10-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Tugas Pemodelan dan Diagnostik Model Arima
+
+## Persiapan bahan untuk analisis
+
+### Library
+```{r}
+library(rio)
+library(tseries)
+library(MASS)
+library(TSA)
+library(lmtest)
+library(forecast)
+```
+### Input Data
+```{r}
+data <- import("https://raw.githubusercontent.com/imomenujung/MPDW/main/Pertemuan%201/Data%20Minyak.csv")
+data
+```
+Data tersebut merupakan data perkembangan minyak goreng di kota Bogor tiap minggu dari bulan Mei 2021 - Agustus 2023 (satuan Rupiah)
+
+### Partisi Data
+```{r}
+data.ts <- ts(data$Minyak_Goreng)
+data_train <- ts(data$Minyak_Goreng[1:75])
+data_test <- ts(data$Minyak_Goreng[76:120])
+data_train
+data_test
+```
+## Eksplorasi Data
+
+### Visualisasi data
+```{r}
+## Plot Data Keseluruhan
+ts.plot(data.ts, xlab="Periode ", ylab="Harga Minyak Goreng (Rupiah)",
+        main = "Perkembangan Harga Minyak Goreng")
+points(data.ts)
+
+## plot data latih
+ts.plot(data_train, xlab="Periode ", ylab="Harga Minyak Goreng (Rupiah)",
+        main = "Plot Data Latih")
+points(data_train)
+
+## Plot data Uji
+ts.plot(data_test, xlab="Periode ", ylab="Harga Minyak Goreng (Rupiah)",
+        main = "Plot Data Uji")
+points(data_test)
+
+## plot ACF data latih
+acf(data_train, main = "Plot ACF Data Latih")
+```
+Berdasarkan plot ACF, terlihat bahwa plot ACF pada data tersebut menurun secara perlahan (*tails off slowly*) yang menandakan data tidak stasioner dalam rataan
+
+### Uji ADF Data Latih
+```{r}
+adf.test(data_train)
+```
+H_0 : Data tidak stasioner dalam rataan
+H_1 : Data stasioner dalam rataan
+
+P val sebesar **0.5604** lebih besar dari taraf 5%, sehingga tak tolak H0, cukup bukti untuk mengatakan data tidak stasioner dalam rataan
+
+### Boxcox Data Latih
+```{r}
+#Plot Boxcox
+index <- seq(1:length(data_train))
+bc = boxcox(data_train~index, lambda = seq(0,10,by=1))
+
+#Nilai Lambda
+lambda <- bc$x[which.max(bc$y)]
+lambda
+
+#SK
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+Plot Boxcox menunjukkan nilai rounded value  optimum sebesar **0** dan pada selang kepercayaan 95% nilai memiliki batas bawah **0** dan batas atas **0.5050505**. Selang tersebut tidak memuat nilai satu sehingga dapat dikatakan bahwa data bangkitan tidak stasioner dalam ragam.
+
+## Penanganan Tidak Stasioner
+
+### Eksplorasi
+```{r}
+train.diff<-diff(data_train,differences = 1)
+plot.ts(train.diff)
+```
+berdasarkan plot data deret waktu, terlihat bahwa di awal data sudah stasioner dalam rataan ditandai dengan data bergerak pada nilai tengah tertentu namun dipertengahan terlihat data kurang stasioner
+
+### ACF dan Uji ADF
+```{r}
+acf(train.diff)
+adf.test(train.diff)
+```
+Hasil ACF : plot ACF cenderung *cuts off* pada lag ke 1 dan 7. Sehingga jika plot PACF dianggap *tails of*, maka model tentatifnya adalah ARIMA(0,1,1) / ARIMA(0,1,7). 
+
+Hasil ADF : 
+H_0 : Data tidak stasioner dalam rataan
+H_1 : Data stasioner dalam rataan
+P val sebesar **0.04637** lebih kecil dari taraf 5%, sehingga tolak H0, sehingga bisa dikatakan data cenderung stasioner dalam rataan.
+
+### PACF
+```{r}
+pacf(train.diff)
+```
+plot PACF cenderung *cuts off* pada lag ke 1 dan 6, sehingga jika plot ACF dianggap tails of, maka model tentatifnya adalah ARIMA(1,1,0) / ARIMA(6,1,0).
+
+### EACF
+```{r}
+eacf(train.diff)
+```
+model tentatif yang terbentuk adalah ARIMA(0,1,1), ARIMA(0,1,2), ARIMA(0,1,1), ARIMA(1,1,1), ARIMA(2,1,1),ARIMA(3,1,0) dan masih banyak lagi.
+
+## Pemodelan ARIMA
+```{r}
+#0,1,1
+model1<-Arima(train.diff, order=c(0,1,1),method="ML")
+summary(model1) #AIC=1164.33
+coeftest(model1)
+
+#0,1,7
+model2<-Arima(train.diff, order=c(0,1,7),method="ML")
+summary(model2) #AIC=1156.22
+coeftest(model2)
+
+#1,1,0
+model3<-Arima(train.diff, order=c(1,1,0),method="ML")
+summary(model3) #AIC=1167.5
+coeftest(model3)
+
+#6,1,0
+model4<-Arima(train.diff, order=c(6,1,0),method="ML")
+summary(model4) #AIC=1163.6
+coeftest(model4)
+
+#1,1,1
+model5<-Arima(train.diff, order=c(1,1,1),method="ML")
+summary(model5) #AIC=1151.31
+coeftest(model5)
+
+#2,1,1
+model6<-Arima(train.diff, order=c(2,1,1),method="ML")
+summary(model6) #AIC=1151.02
+coeftest(model6)
+
+#3,1,0
+model7<-Arima(train.diff, order=c(3,1,0),method="ML")
+summary(model7) #AIC=1159.68
+coeftest(model7)
+```
+Model yang dipilih adalah model 5 (ARIMA(1,1,1)). Hal ini karena model 5  Memiliki AIC paling kecil dibandingkan model lainnya dan seluruh parameternya signifikan.
+
+## Analisis Sisaan
+
+Model terbaik hasil identifikasi kemudian dicek asumsi sisaannya. Sisaan model ARIMA harus memenuhi asumsi normalitas, kebebasan, dan kehomogenan ragam. Diagnostik model dilakukan secara eksplorasi dan uji formal.
+
+### Eksplorasi sisaan
+```{r}
+sisaan.da <- model5$residuals
+par(mfrow=c(1,1))
+qqnorm(sisaan.da)
+qqline(sisaan.da, col = "blue", lwd = 2)
+plot(c(1:length(sisaan.da)),sisaan.da)
+acf(sisaan.da)
+pacf(sisaan.da)
+```
+Berdasarkan Eksplorasi terlihat bahwa sisaan tidak menyebar normal dan sisaan saling bebas linear, dan berdasarkan ACF dan PACF pada semua lag terlihat tidak ada nilai yang keluar dari batas.
+
+### Uji Kenormalan
+```{r}
+ks.test(sisaan.da,"pnorm")  #tak tolak H0 > sisaan menyebar normal
+```
+H0: Sisaan menyebar normal
+H1: Sisaan tidak menyebar normal
+
+Berdasarkan uji Kolmogrov Smirnov, didapat p-value sebesar **1.332e-15* yang kurang dari taraf nyata 5% sehingga tolak H0. dan menandakan bahwa sisaan tidak menyebar normal.
+
+### Uji Kebebasan (Identifikasi Korelasi)
+```{r}
+Box.test(sisaan.da, type = "Ljung")  #tak tolak H0 > sisaan saling bebas
+```
+H0 : Sisaan saling bebas
+H1 : Sisaan tidak saling bebas
+Berdasarkan uji Ljung-Box , didapat p-value sebesar **0.5062** yang lebih besar dari taraf nyata 5% sehingga tak tolak H0. Hal ini menandakan bahwa sisaan saling bebas.
+
+### Uji Kehomogenan ragam Sisaan
+```{r}
+Box.test((sisaan.da)^2, type = "Ljung")  #tak tolak H0 > sisaan homogen
+```
+H0 : Ragam sisaan homogen
+H1 : Ragam sisaan tidak homogen
+
+Berdasarkan uji Ljung-Box terhadap sisaan kuadrat, didapat p-value sebesar **1.599e-05** yang kurang dari taraf nyata 5% sehingga tolak H0 menandakan bahwa ragam sisaan homogen.
+
+### Uji Nilai tengah sisaan sama dengan nol
+```{r}
+t.test(sisaan.da, mu = 0, conf.level = 0.95)  #tak tolak h0 > nilai tengah sisaan sama dengan 0
+```
+H0 : nilai tengah sisaan sama dengan 0
+H1 : nilai tengah sisaan tidak sama dengan 0
+
+Berdasarkan uji-t, didapat p-value sebesar **0.6794** yang lebih besar dari taraf nyata 5% sehingga tak tolak H0 menandakan bahwa nilai tengah sisaan sama dengan nol.
+
+## Peramalan
+
+Berikut peramalan untuk 45 periode kedepan
+```{r}
+ramalan.da <- forecast(model5, h = 45)
+ramalan.da
+
+data.ramalan.da <- ramalan.da$mean
+plot(ramalan.da)
+```
+### Eksplorasi data hasil peramalan
+```{r}
+pt_1 <- data_train[length(data_train)] #nilai akhir data latih
+hasil.forc.Diff <- data.ramalan.da
+hasil <- diffinv(hasil.forc.Diff, differences = 1) + pt_1
+#has.1 sama hasilnta dengan: cumsum(c(pt_1,hasil.forc.Diff))
+ts.plot(data_train,hasil,xlab="Periode ", ylab="Harga Minyak Goreng (Rupiah)",
+        main = "Perkembangan Harga Minyak Goreng")
+```
+Data peramalan menunjukkan harga minyak akan selalu naik perlahan
+
+### Perbandingan data Uji dengan data hasil peramalan
+```{r}
+perbandingan.da<-matrix(data=c(head(data_test, n=45), hasil[-1]),
+                        nrow = 45, ncol = 2)
+colnames(perbandingan.da)<-c("Aktual","Hasil Forecast")
+perbandingan.da
+
+selisih <- perbandingan.da[ ,1] -perbandingan.da[ ,2]
+selisih <- as.matrix(abs(selisih))
+colnames(selisih)<-c("Selisih antara Aktual dengan Forecast")
+summary(selisih)
+```
+Dari Hasil antara data Aktual dengan data peramalan didapatkan rata-rata selisih sebesar **407.32 rupiah** dengan selisih terkecil sama dengan  **4.86 rupiah** dan selisih terbesar sebesar **1087 rupiah**
+
+### Tingkat Akurasi
+```{r}
+accuracy(ts(hasil[-1]), head(data_test, n=45))
+```
