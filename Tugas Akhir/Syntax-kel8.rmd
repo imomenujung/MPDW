@@ -1,0 +1,614 @@
+---
+title: "Syntax MPDW Rapih"
+author: "Kelompok 8 MPDW"
+date: "2023-11-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pra Analisis
+## Deskripsi Data
+
+Data yang digunakan merupakan data time series periode mingguan dari tanggal **29 Desember 2019** hingga **29 Oktober 2023** untuk data nilai tukar  (kurs jual) Rupiah terhadap USD. Data nilai kurs jual Rupiah terhadap USD merupakan data sekunder yang diambil dari website https://www.bi.go.id/id/statistik/informasi-kurs. Data ini terdiri dari 200 baris dan 2 kolom yang berisi nilai kurs jual dengan satuan Rupiah beserta keterangan waktu pencatatannya.
+
+## Packages yang Digunakan
+
+```{r}
+library(ggplot2)
+library(tsibble)
+library(tseries)
+library(MASS)
+library(forecast)
+library(TSA)
+library(TTR)
+library(aTSA)
+library(graphics)
+library(dynlm) #time series regression
+library(broom) #LM test
+library(FinTS) #ARCH test
+library(rugarch) #GARCH 
+```
+
+## Import Data
+
+```{r}
+Data = read.csv("C:/Users/Fagluy/Downloads/DataUSD (1).csv",sep=",")
+head(Data)
+str(Data)
+
+# Menggantilah 'data_mingguan' dengan nama dataframe Anda
+Data$Week <- as.Date(Data$Week, format = "%Y-%m-%d")
+```
+
+# Eksplorasi Data 
+
+## Plot Data Penuh
+
+```{r}
+kurs <- ts(Data$Average_Kurs)
+head(kurs)
+ts.plot(kurs, xlab="Waktu", ylab="Kurs Jual", 
+        main = "Plot Penuh")
+
+```
+
+Berdasarkan eksplorasi data terlihat pola yang cenderung serupa, maka dari itu kami membagi data menjadi data training dari 29 Desember 2019 hingga 28 Agustus 2022 yang berjumlah 140 data dan data testing dari 4 September 2022 hingga 29 Oktober 2023 yang berjumlah 60 data untuk memvalidasi model.
+
+## Pembagian data Train dan Data Test
+
+```{r}
+kurs.train <- kurs[1:140]
+kurs.test <- kurs[141:200]
+kurs.train.ts <- ts(Data$Average_Kurs[1:140])
+kurs.test.ts <- ts(Data$Average_Kurs[141:200])
+```
+
+## Plot Data Penuh, Data Latih, dan Data Uji
+
+```{r}
+par(mfrow=c(2,2))
+ts.plot(kurs, xlab="Waktu", ylab="Kurs Jual", 
+        main = "Plot Penuh")
+ts.plot(kurs.train, xlab="Waktu", ylab="Kurs Jual", 
+        main = "Plot Latih")
+ts.plot(kurs.test, xlab="Waktu", ylab="Kurs Jual", 
+        main = "Plot Uji")
+
+```
+
+# Uji Stasioneritas Data
+
+## Kestasioneran dalam Rataan
+
+### ACF PACF
+
+```{r}
+library(forecast)
+par(mfrow=c(1,2))
+acf(kurs.train.ts)
+pacf(kurs.train.ts)
+```
+
+Dari plot ACF terlihat bahwa data turun secara perlahan (tails off) dan cenderung membentuk pola menyerupai gelombang cosinus, sementara plot PACF menunjukkan data cuts off pada lag ke-2. Pola data pada plot ACF mengindikasikan data tidak stasioner dalam rataan, selanjutnya kestasioneran dalam rataan akan diperiksa lebih lanjut melalui uji formal ADF
+
+### Uji ADF
+
+```{r}
+tseries::adf.test(kurs.train.ts)
+```
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji formal ADF, diperoleh p-value sebesar 0.01 < 0.05, artinya data stasioner dalam rataan
+
+## Kestasioneran dalam Ragam
+
+### Uji Box-Cox
+
+```{r}
+kurs.index <- seq(1:140)
+kurs.bc = boxcox(kurs.train.ts ~ kurs.index, lambda = seq(-15, 2, by=0.1))
+#Nilai Rounded Lambda
+kurs.lambda <- kurs.bc$x[which.max(kurs.bc$y)]
+kurs.lambda
+#SK
+kurs.bc$x[kurs.bc$y > max(kurs.bc$y) - 1/2 * qchisq(.95,1)]
+```
+Plot Boxcox menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **-11** dan pada selang kepercayaan 95% nilai memiliki batas bawah **-11** dan batas atas **-7.1**. Selang tersebut tidak  memuat nilai satu sehingga dapat dikatakan bahwa data tidak stasioner dalam ragam. 
+
+# Penanganan Kestasioneran dalam Rataan
+
+## Differencing 1 kali
+
+```{r}
+kurs.diff <- diff(kurs.train.ts, differences = 1) 
+plot.ts(kurs.diff, lty=1, xlab="waktu", ylab="Data Difference 1", main="Plot Difference 1")
+```
+
+## Uji Stasioner Hasil Diferensiasi
+
+### Uji ADF
+```{r}
+tseries::adf.test(kurs.diff)
+```
+
+Berdasarkan hasil uji ADF, diperoleh p-value = 0.01 < 0.05. Hal ini menunjukkan bahwa data telah stasioner dalam rataan.
+
+### ACF dan PACF setelah Diferensiasi
+
+```{r}
+par(mfrow=c(1,2))
+acf(kurs.diff)
+pacf(kurs.diff)
+```
+
+Berdasarkan plot ACF, terlihat bahwa plot ACF cenderung *cuts off* pada lag ke 1, sehingga jika plot PACF dianggap *tails of*, maka model tentatifnya adalah **ARIMA(0,1,1)**.
+
+Berdasarkan plot PACF, terlihat bahwa plot PACF cenderung *cuts off* pada lag ke 1, sehingga jika plot ACF dianggap *tails of*, maka model tentatifnya adalah **ARIMA(1,1,0)**.
+
+Jika baik plot ACF maupun plot PACF keduanya dianggap tails of, maka model yang terbentuk adalah **ARIMA(1,1,1)**
+
+### Plot EACF
+
+```{r}
+eacf(kurs.diff)
+```
+
+Identifikasi model tentatif menggunakan plot EACF dilakukan dengan melihat ujung segitiga pada pola segitiga nol. Model tentatif yang terbentuk adalah ARIMA(2,1,1), ARIMA(3,1,2)
+
+Model tentatif yang digunakan pada analisis selanjutnya adalah ARIMA(1,1,1), ARIMA(1,1,0), ARIMA(0,1,1), ARIMA(2,1,1) dan ARIMA(3,1,2)
+
+# Pembuatan Model ARIMA
+
+## Memilih model mean terbaik
+
+```{r}
+ARIMA111 <- Arima(kurs.diff, order=c(1,1,1), method = "ML")
+ARIMA110 <- Arima(kurs.diff, order=c(1,1,0), method = "ML")
+ARIMA011 <- Arima(kurs.diff, order=c(0,1,1), method = "ML")
+ARIMA211 <- Arima(kurs.diff, order=c(2,1,1), method = "ML")
+ARIMA312 <- Arima(kurs.diff, order=c(3,1,2), method = "ML") 
+ARIMA410 <- Arima(kurs.diff, order=c(4,1,0), method = "ML")
+
+lmtest::coeftest(ARIMA111)
+lmtest::coeftest(ARIMA110)
+lmtest::coeftest(ARIMA011)
+lmtest::coeftest(ARIMA211)
+lmtest::coeftest(ARIMA312)
+lmtest::coeftest(ARIMA410)
+
+Model <- c("ARIMA(1,1,1)","ARIMA(1,1,0)","ARIMA(0,1,1)","ARIMA(2,1,1)","ARIMA(3,1,2)","ARIMA(4,1,0)")
+AIC <- c(ARIMA111$aic,ARIMA110$aic,ARIMA011$aic,ARIMA211$aic,ARIMA312$aic,ARIMA410$aic)
+
+perbandingan_AIC <- as.data.frame(cbind(Model,AIC))
+perbandingan_AIC
+
+```
+
+Dari perbandingan model tentatif diatas diperoleh bahwa model terbaik dengan nilai AIC terkecil dan seluruh parameternya signifikan yaitu model ARIMA(1,1,1) yaitu 1785.65
+
+## Uji Diagnostik Model
+```{r}
+#Eksplorasi 
+sisaan.da <- ARIMA111$residuals 
+par(mfrow=c(1,2)) 
+qqnorm(sisaan.da) 
+qqline(sisaan.da, col = "blue", lwd = 2) 
+plot(c(1:length(sisaan.da)),sisaan.da) 
+acf(sisaan.da) 
+pacf(sisaan.da) 
+par(mfrow = c(1,1))
+```
+
+Berdasarkan plot kuantil-kuantil normal, secara eksplorasi ditunjukkan sisaan menyebar tidak normal ditandai dengan titik-titik yang cenderung tidak mengikuti garis. Kemudian dapat dilihat juga lebar pita sisaan yang cenderung sama menandakan bahwa sisaan memiliki ragam yang heterogen. Plot ACF dan PACF sisaan ARIMA(1,1,1) signifikan pada lag ke-5 sehingga sisaan tidak saling bebas. Kondisi ini akan diuji lebih lanjut dengan uji formal.
+
+## Uji Formal
+
+```{r}
+#1) Sisaan Menyebar Normal 
+ks.test(sisaan.da,"pnorm")  #tak tolak H0 > sisaan menyebar normal
+```
+
+Selain dengan eksplorasi, asumsi tersebut dapat diuji menggunakan uji formal. Pada tahapan ini uji formal yang digunakan untuk normalitas adalah uji Kolmogorov-Smirnov (KS). Hipotesis pada uji KS adalah sebagai berikut.
+
+$H_0$ : Sisaan menyebar normal
+
+$H_1$ : Sisaan tidak menyebar normal
+
+Berdasarkan uji KS tersebut, didapat *p-value* sebesar <2.2e-16 yang kurang dari taraf nyata 5% sehingga tolak $H_0$ dan menandakan bahwa **sisaan tidak menyebar normal**. Hal ini sesuai dengan hasil eksplorasi menggunakan plot kuantil-kuantil normal.
+
+```{r}
+#2) Sisaan saling bebas/tidak ada autokorelasi 
+Box.test(sisaan.da, type = "Ljung")  #tak tolak H0 > sisaan saling bebas
+```
+
+Selanjutnya akan dilakukan uji formal untuk kebebasan sisaan menggunakan uji Ljung-Box. Hipotesis yang digunakan adalah sebagai berikut.
+
+$H_0$ : Sisaan saling bebas
+
+$H_1$ : Sisaan tidak tidak saling bebas
+
+Berdasarkan uji Ljung-Box tersebut, didapat *p-value* sebesar 0.6747 > taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa **sisaan saling bebas**. Hal ini berbeda dengan eksplorasi.
+
+```{r}
+#3) Sisaan homogen 
+Box.test((sisaan.da)^2, type = "Ljung")  #tak tolak H0 > sisaan homogen
+```
+
+Hipotesis yang digunakan untuk uji kehomogenan ragam adalah sebagai berikut.
+
+$H_0$ : Ragam sisaan homogen
+
+$H_1$ : Ragam sisaan tidak homogen
+
+Berdasarkan uji Ljung-Box terhadap sisaan kuadrat tersebut, didapat *p-value* sebesar 0.00835 < taraf nyata 5% sehingga tolak $H_0$ dan menandakan bahwa **ragam sisaan tidak homogen**.
+
+```{r}
+#4) Nilai tengah sisaan sama dengan nol 
+t.test(sisaan.da, mu = 0, conf.level = 0.95)  #tak tolak h0 > nilai tengah sisaan sama dengan 0
+```
+
+Terakhir, dengan uji-t, akan dicek apakah nilai tengah sisaan sama dengan nol. Hipotesis yang diujikan sebagai berikut.
+
+$H_0$ : nilai tengah sisaan sama dengan 0
+
+$H_1$ : nilai tengah sisaan tidak sama dengan 0
+
+Berdasarkan uji-ttersebut, didapat *p-value* sebesar 0.7823 > taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa **nilai tengah sisaan sama dengan nol**.
+
+## Akurasi Model ARIMA(1,1,1)
+
+```{r}
+kurs.ramalan <- forecast::forecast(ARIMA111, h = 51) 
+kurs.ramalan
+kurs.data.ramalan <- kurs.ramalan$mean
+plot(kurs.ramalan)
+
+kurs.pt <- kurs.train[140] #nilai akhir data latih
+kurs.hasil.forc.Diff <- kurs.data.ramalan
+kurs.hasil <- diffinv(kurs.hasil.forc.Diff, differences = 1) + kurs.pt
+#has.1 sama hasilnta dengan: cumsum(c(pt_1,hasil.forc.Diff))
+ts.plot(kurs.train.ts, kurs.hasil)
+
+kurs.perbandingan <- matrix(data=c(head(kurs.test, n=51), kurs.hasil[-1]),
+                     nrow = 51, ncol = 2)
+colnames(kurs.perbandingan) <- c("Aktual","Hasil Forecast")
+kurs.perbandingan
+accuracy(ts(kurs.hasil[-1]), head(kurs.test, n=51))
+```
+
+Diperoleh nilai MAPE sebesar 1.99%. Nilai MAPE ini dapat dikatakan bagus karena < 2%. Namun MAPE ini diperoleh dari model yang belum tertangani uji asumsi normalitas dan kehomogenan ragam, serta kestasioneran ragam. Selanjutnya akan dilakukan pemodelan dengan metode ARCH GARCH untuk menangani heteroskedastisitas dari ragam.
+
+# Uji Efek ARCH
+
+Identifikasi adanya proses ARCH pada sisaan model ARIMA(1,1,1) dapat
+dilakukan dengan uji *Lagrange Multiplier* (LM). Hipotesis yang
+digunakan adalah sebagai berikut:
+
+H0 : Tidak terjadi heteroskedastisitas
+
+H1 : Terjadi Heteroskedastisitas
+
+```{r}
+ARIMA111 <- arima(kurs.diff, order=c(1,1,1), method="ML")
+aTSA::arch.test(ARIMA111)
+for (i in 1:15) {
+  ArchTest <- ArchTest(ARIMA111$residuals, lags=i, demean=TRUE)
+  cat("P Value LM Test lag ke", i,"adalah" , ArchTest$p.value, "\n") }
+```
+
+Berdasarkan hasil uji diperoleh nilai $P-Value$ dari lag ke-1 sampai lag
+ke-15 yang didapat lebih kecil dari α = 5%, maka keputusan yang diambil
+adalah Tolak H0. Dengan kata lain, dapat disimpulkan bahwa terdapat
+unsur heteroskedastisitas pada sisaan model ARIMA(1,1,1). Kondisi yang
+menolak H0 ini terjadi sampai dengan lag ke-15 sehingga dapat dikatakan
+bahwa indikasi pemodelan sisaan ini lebih cocok menggunakan model GARCH
+dibandingkan model ARCH.
+
+# Pendugaan Model GARCH
+
+## Pembuatan model GARCH (ARIMA(1,1,1))
+
+### (AR(0))
+```{r}
+#GARCH(0,1) AKAIKE = 12.673
+garchSpec01 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,1)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit01 <- ugarchfit(spec=garchSpec01, data=kurs.diff)
+coef(garchFit01)
+garchFit01
+```
+
+
+
+
+```{r}
+#GARCH(0,2) AKAIKE = 12.682
+garchSpec02 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,2)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit02 <- ugarchfit(spec=garchSpec02, data=kurs.diff)
+coef(garchFit02)
+garchFit02
+```
+
+```{r}
+#GARCH(0,3) AKAIKE = 12.690
+garchSpec03 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,3)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit03 <- ugarchfit(spec=garchSpec03, data=kurs.diff)
+coef(garchFit03)
+garchFit03
+```
+
+```{r}
+#GARCH(0,4) AKAIKE = 12.698
+garchSpec04 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,4)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit04 <- ugarchfit(spec=garchSpec04, data=kurs.diff)
+coef(garchFit04)
+garchFit04
+```
+
+```{r}
+#GARCH(0,5) AKAIKE = 12.706
+garchSpec05 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,5)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit05 <- ugarchfit(spec=garchSpec05, data=kurs.diff)
+coef(garchFit05)
+garchFit05
+```
+
+```{r}
+#GARCH(0,6) AKAIKE = 12.712
+garchSpec06 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,6)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit06 <- ugarchfit(spec=garchSpec06, data=kurs.diff)
+coef(garchFit06)
+garchFit06
+```
+
+```{r}
+#GARCH(0,7) AKAIKE = 12.718
+garchSpec07 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,7)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit07 <- ugarchfit(spec=garchSpec07, data=kurs.diff)
+coef(garchFit07)
+garchFit07
+```
+
+```{r}
+#GARCH(0,8) AKAIKE = 12.731
+garchSpec08 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,8)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit08 <- ugarchfit(spec=garchSpec08, data=kurs.diff)
+coef(garchFit08)
+garchFit08
+```
+
+```{r}
+#GARCH(0,9) AKAIKE = 12.728
+garchSpec09 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,9)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit09 <- ugarchfit(spec=garchSpec09, data=kurs.diff)
+coef(garchFit09)
+garchFit09
+```
+
+```{r}
+#GARCH(0,10) AKAIKE = 12.732
+garchSpec010 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,10)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit010 <- ugarchfit(spec=garchSpec010, data=kurs.diff)
+coef(garchFit010)
+garchFit010
+```
+
+### (AR(1))
+
+```{r}
+#GARCH(1,1) AKAIKE = 12.385
+garchSpec11 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,1)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit11 <- ugarchfit(spec=garchSpec11, data=kurs.diff)
+coef(garchFit11)
+garchFit11
+```
+
+```{r}
+#GARCH(1,2) AKAIKE = 12.375
+garchSpec12 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,2)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit12 <- ugarchfit(spec=garchSpec12, data=kurs.diff)
+coef(garchFit12)
+garchFit12
+```
+```{r}
+#GARCH(1,3) AKAIKE = 12.336
+garchSpec13 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,3)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit13 <- ugarchfit(spec=garchSpec13, data=kurs.diff)
+coef(garchFit13)
+garchFit13
+```
+
+```{r}
+#GARCH(1,4) AKAIKE = 12.446
+garchSpec14 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,4)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit14 <- ugarchfit(spec=garchSpec14, data=kurs.diff)
+coef(garchFit14)
+garchFit14
+```
+
+```{r}
+#GARCH(1,5) AKAIKE = 12.556
+garchSpec15 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,5)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit15 <- ugarchfit(spec=garchSpec15, data=kurs.diff)
+coef(garchFit15)
+garchFit15
+```
+
+```{r}
+#GARCH(1,6) AKAIKE = 12.666
+garchSpec16 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,6)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit16 <- ugarchfit(spec=garchSpec16, data=kurs.diff)
+coef(garchFit16)
+garchFit16
+```
+
+```{r}
+#GARCH(1,7) AKAIKE = 12.776
+garchSpec17 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,7)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit17 <- ugarchfit(spec=garchSpec17, data=kurs.diff)
+coef(garchFit17)
+garchFit17
+```
+
+```{r}
+#GARCH(1,8) AKAIKE = 18.390
+garchSpec18 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,8)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit18 <- ugarchfit(spec=garchSpec18, data=kurs.diff)
+coef(garchFit18)
+garchFit18
+```
+
+### (AR(2))
+
+```{r}
+#GARCH(2,1) AKAIKE = 12.396
+garchSpec21 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(2,1)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit21 <- ugarchfit(spec=garchSpec21, data=kurs.diff)
+coef(garchFit21)
+garchFit21
+```
+## Overfitting
+
+ARIMA(1,1,1)-GARCH(1,1)
+```{r}
+#GARCH(1,1) AKAIKE = 12.396
+garchSpec11 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(1,1)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit11 <- ugarchfit(spec=garchSpec11, data=kurs.diff)
+coef(garchFit11)
+garchFit11
+```
+
+ARIMA(1,1,1)-GARCH(0,2)
+```{r}
+#GARCH(2,1) AKAIKE = 12.396
+garchSpec02 <- ugarchspec(
+  variance.model=list(model="sGARCH",
+                      garchOrder=c(0,)),
+mean.model=list(armaOrder=c(1,1)))
+garchFit02 <- ugarchfit(spec=garchSpec02, data=kurs.diff)
+coef(garchFit02)
+garchFit02
+```
+
+## Hasil Pendugaan
+
+Pendugaan model GARCH untuk mendapat model terbaik ditentukan dengan
+cmempertimbangkan nilai $p-value$ ARCH-LM, nilai AIC terkecil, dan
+signifikansi parameternya.
+
+Hasil trial and error menghasilkan model ARIMA(2,1,3)-GARCH(3,5) dengan
+$p-value$ uji ARCH-LM sebesar 0,976, artinya efek ARCH sudah teratasi.
+Selanjutnya akan dilakukan overfitting pada model GARCH tersebut yang
+hasilnya ditunjukkan pada tabel di bawah:
+
+|          Model          | Signifikansi Parameter |  AIC   |
+|:-----------------------:|:----------------------:|:------:|
+| ARIMA(1,1,1)-GARCH(0,1) |       Signifikan       | 12.673 |
+| ARIMA(1,1,1)-GARCH(1,1) |    Tidak Signifikan    | 12.385 |
+| ARIMA(1,1,1)-GARCH(0,2) |       Signifikan       | 12.682 |
+
+Berdasarkan tabel di atas, didapat bahwa model ARIMA(1,1,1)-GARCH(0,1)
+yaitu model sebelum overfitting memilikiki nilai AIC paling minimum sehingga dipilih menjadi model terbaik. Selanjutnya, sebelum melakukan peramalan,dilakukan uji diagnostik kembali pada model ARIMA(1,1,1)-GARCH(0,1) dengan uji Shapiro.Wilk dan uji LM ARCH sebagai berikut:
+
+## Uji Diagnostik
+
+### Uji Saphiro Wilk
+
+```{r}
+shapiro.test(garchFit01@res)
+```
+
+# Peramalan dengan Model ARIMA(1,1,1)-GARCH(0,1)
+
+## Plot Peramalan
+```{r}
+forc<- ugarchforecast(fitORspec = garchFit01, data = Data$Average_Kurs, n.ahead = 60, n.roll = 0)
+plot(forc, which= 1)
+```
+
+## Akurasi
+```{r}
+pt_1 <- Data$Average_Kurs[140] #nilai akhir data latih
+hasil.forc.Diff <- forc@forecast$seriesFor[,1]
+hasil <- diffinv(hasil.forc.Diff, differences = 1) + pt_1
+perbandingan <- data.frame("Aktual"= kurs.test.ts,
+                           "Ramalan" = hasil[-1])
+ramal <- ts(hasil[-1])
+head(perbandingan,60)
+Date<-c(Data$Week[141:200]) 
+dataframe <- data.frame(Date, perbandingan) 
+plot(1:length(kurs.test.ts),kurs.test.ts, type="l", col="black",
+     ylab="Data Nilai Tukar",xlab="Mingguan", main="Perbandingan Data Ramalan vs Aktual", ylim=c(14000,16000))
+lines(dataframe$Ramalan,col="blue")
+legend("topleft",c("data aktual","Ramalan Arima(2,1,3)-Garch(3,6)"), lty=1, 
+       col=c("black", "blue"))
+T <- nrow(dataframe) 
+MAPE <- 1/T*sum(abs((dataframe$Aktual-dataframe$Ramalan)/dataframe$Aktual)*100)
+MAPE
+```
+
+Diperoleh nilai MAPE sebesar **1.94%**. Hasil ini lebih baik dibandingkan nilai MAPE 1.99% hasil Pendugaan menggunakan ARIMA saja. Nilai MAPE ini dapat dikatakan bagus karena < 2%. 
