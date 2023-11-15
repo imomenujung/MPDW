@@ -35,7 +35,7 @@ library(rugarch) #GARCH
 ## Import Data
 
 ```{r}
-Data = read.csv("C:/Users/Fagluy/Downloads/DataUSD (1).csv",sep=",")
+Data = read.csv("https://raw.githubusercontent.com/imomenujung/MPDW/main/Tugas%20Akhir/DataUSD.csv",sep=",")
 head(Data)
 str(Data)
 
@@ -547,7 +547,7 @@ ARIMA(1,1,1)-GARCH(0,2)
 #GARCH(2,1) AKAIKE = 12.396
 garchSpec02 <- ugarchspec(
   variance.model=list(model="sGARCH",
-                      garchOrder=c(0,)),
+                      garchOrder=c(0,2)),
 mean.model=list(armaOrder=c(1,1)))
 garchFit02 <- ugarchfit(spec=garchSpec02, data=kurs.diff)
 coef(garchFit02)
