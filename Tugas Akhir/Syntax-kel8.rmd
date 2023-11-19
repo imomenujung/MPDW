@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 # Pra Analisis
 ## Deskripsi Data
 
+###
+
 Data yang digunakan merupakan data time series periode mingguan dari tanggal **29 Desember 2019** hingga **29 Oktober 2023** untuk data kurs jual  (kurs jual) Rupiah terhadap USD. Data nilai kurs jual Rupiah terhadap USD merupakan data sekunder yang diambil dari website https://www.bi.go.id/id/statistik/informasi-kurs. Data ini terdiri dari 200 baris dan 2 kolom yang berisi nilai kurs jual dengan satuan Rupiah beserta keterangan waktu pencatatannya.
 
 ## Packages yang Digunakan
