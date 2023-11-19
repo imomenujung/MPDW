@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Pra Analisis
 ## Deskripsi Data
 
-Data yang digunakan merupakan data time series periode mingguan dari tanggal **29 Desember 2019** hingga **29 Oktober 2023** untuk data nilai tukar  (kurs jual) Rupiah terhadap USD. Data nilai kurs jual Rupiah terhadap USD merupakan data sekunder yang diambil dari website https://www.bi.go.id/id/statistik/informasi-kurs. Data ini terdiri dari 200 baris dan 2 kolom yang berisi nilai kurs jual dengan satuan Rupiah beserta keterangan waktu pencatatannya.
+Data yang digunakan merupakan data time series periode mingguan dari tanggal **29 Desember 2019** hingga **29 Oktober 2023** untuk data kurs jual  (kurs jual) Rupiah terhadap USD. Data nilai kurs jual Rupiah terhadap USD merupakan data sekunder yang diambil dari website https://www.bi.go.id/id/statistik/informasi-kurs. Data ini terdiri dari 200 baris dan 2 kolom yang berisi nilai kurs jual dengan satuan Rupiah beserta keterangan waktu pencatatannya.
 
 ## Packages yang Digunakan
 
@@ -45,19 +45,40 @@ Data$Week <- as.Date(Data$Week, format = "%Y-%m-%d")
 
 # Eksplorasi Data 
 
+Data pada algoritma ini umumnya perlu dibagi menjadi 2 bagian, yaitu
+data training dan data testing. Data training nantinya akan digunakan
+untuk melatih algoritma dalam mencari model yang sesuai, sedangkan data
+testing akan dipakai untuk menguji dan mengetahui performa model yang
+didapatkan pada tahapan testing.
+
 ## Plot Data Penuh
 
 ```{r}
 kurs <- ts(Data$Average_Kurs)
 head(kurs)
-ts.plot(kurs, xlab="Waktu", ylab="Kurs Jual", 
-        main = "Plot Penuh")
+ts.plot(kurs, xlab="Periode", ylab="kurs jual", 
+        main = "Plot kurs jual rupiah mingguan periode 2017-2023")
 
 ```
 
-Berdasarkan eksplorasi data terlihat pola yang cenderung serupa, maka dari itu kami membagi data menjadi data training dari 29 Desember 2019 hingga 28 Agustus 2022 yang berjumlah 140 data dan data testing dari 4 September 2022 hingga 29 Oktober 2023 yang berjumlah 60 data untuk memvalidasi model.
+
+
+Berdasarkan eksplorasi data, pola kurs jual terlihat berbentuk campuran (tren naik di awal, konstan di tengah, dan akhirnya mengalami trend kembali.
+
+```{r}
+summary(Data$Average_Kurs)
+```
+
+
+Rata-rata kurs jual rupiah terhadap dolar AS mingguan sebesar 14789
+dengan nilai standar deviasi (penyebaran data) sebesar  dari
+rata-rata. Data kurs jual rupiah mingguan mencapai nilai tertinggi
+pada angka 16547 yaitu pada tanggal dan menyentuh nilai
+terendah pada angka 13709 pada tanggal 
 
 ## Pembagian data Train dan Data Test
+
+Berdasarkan eksplorasi data terlihat pola yang cenderung serupa, maka dari itu kami membagi data menjadi data training dari 29 Desember 2019 hingga 28 Agustus 2022 yang berjumlah 140 data dan data testing dari 4 September 2022 hingga 29 Oktober 2023 yang berjumlah 60 data untuk memvalidasi model.
 
 ```{r}
 kurs.train <- kurs[1:140]
@@ -85,6 +106,8 @@ ts.plot(kurs.test, xlab="Waktu", ylab="Kurs Jual",
 
 ### ACF PACF
 
+Pemeriksaan kestasioneran data dapat di cek menggunakan plot Autocorrelation Function (ACF). Data yang tidak stasioner akan menunjukkan akan menunjukkan adanya tren pada plot time-series dan menunjukkan pola menurun secara eksponensial pada plot ACF.
+
 ```{r}
 library(forecast)
 par(mfrow=c(1,2))
@@ -96,11 +119,16 @@ Dari plot ACF terlihat bahwa data turun secara perlahan (tails off) dan cenderun
 
 ### Uji ADF
 
+Uji Augmented Dickey Fuller adalah uji untuk mengetahui kestasioneran suatu data time-series. Statistik uji yang dipakai dalam Uji ADF merupakan uji t yang menguji signifikansi alpha.
+
+adapun Hipotesis dalam Uji ADF adalah :
+$H_0$ : Data tidak stasioner dalam rataan
+$H_1$ : Data stasioner dalam rataan
+
 ```{r}
 tseries::adf.test(kurs.train.ts)
 ```
 $H_0$ : Data tidak stasioner dalam rataan
-
 $H_1$ : Data stasioner dalam rataan
 
 Berdasarkan uji formal ADF, diperoleh p-value sebesar 0.01 < 0.05, artinya data stasioner dalam rataan
@@ -602,7 +630,7 @@ head(perbandingan,60)
 Date<-c(Data$Week[141:200]) 
 dataframe <- data.frame(Date, perbandingan) 
 plot(1:length(kurs.test.ts),kurs.test.ts, type="l", col="black",
-     ylab="Data Nilai Tukar",xlab="Mingguan", main="Perbandingan Data Ramalan vs Aktual", ylim=c(14000,16000))
+     ylab="Data kurs jual",xlab="Mingguan", main="Perbandingan Data Ramalan vs Aktual", ylim=c(14000,16000))
 lines(dataframe$Ramalan,col="blue")
 legend("topleft",c("data aktual","Ramalan Arima(2,1,3)-Garch(3,6)"), lty=1, 
        col=c("black", "blue"))
