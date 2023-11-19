@@ -2,12 +2,25 @@
 title: "Syntax MPDW Rapih"
 author: "Kelompok 8 MPDW"
 date: "2023-11-15"
-output: html_document
+output: 
+  html_document:
+    toc : true
+    toc_float: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+<style>
+pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: scroll !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+</style>
+
 
 # Pra Analisis
 ## Deskripsi Data
@@ -202,6 +215,7 @@ Jika baik plot ACF maupun plot PACF keduanya dianggap tails of, maka model yang 
 eacf(kurs.diff)
 ```
 
+
 Identifikasi model tentatif menggunakan plot EACF dilakukan dengan melihat ujung segitiga pada pola segitiga nol. Model tentatif yang terbentuk adalah ARIMA(2,1,1), ARIMA(3,1,2)
 
 Model tentatif yang digunakan pada analisis selanjutnya adalah ARIMA(1,1,1), ARIMA(1,1,0), ARIMA(0,1,1), ARIMA(2,1,1) dan ARIMA(3,1,2)
@@ -239,7 +253,7 @@ Dari perbandingan model tentatif diatas diperoleh bahwa model terbaik dengan nil
 ```{r}
 #Eksplorasi 
 sisaan.da <- ARIMA111$residuals 
-par(mfrow=c(1,2)) 
+par(mfrow=c(2,2)) 
 qqnorm(sisaan.da) 
 qqline(sisaan.da, col = "blue", lwd = 2) 
 plot(c(1:length(sisaan.da)),sisaan.da) 
@@ -623,7 +637,7 @@ yaitu model sebelum overfitting memilikiki nilai AIC paling minimum sehingga dip
 ### Uji Saphiro Wilk
 
 ```{r}
-shapiro.test(garchSpec01)
+#shapiro.test(garchSpec01)
 ```
 
 # Peramalan dengan Model ARIMA(1,1,1)-GARCH(0,1)
