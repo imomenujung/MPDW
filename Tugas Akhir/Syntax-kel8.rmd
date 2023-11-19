@@ -62,6 +62,21 @@ ts.plot(kurs, xlab="Periode", ylab="kurs jual",
 
 ```
 
+## plot data dengan garis batas
+```{r}
+ggplot(Data, aes(x=Week, y=Average_Kurs)) +
+  geom_line() + xlab("Periode") + ylab("Rata-rata Kurs Jual") +
+  scale_x_date(date_labels = ("%Y")) +
+  labs(title = "Plot Time Series Data Kurs Jual Rupiah terhadap USD",
+       subtitle = "(Desember 2017 - Oktober 2023)") +
+  theme(plot.title =  element_text(face = "bold", hjust=.7),
+        plot.subtitle = element_text(hjust=.5),
+        legend.position = "bottom") + geom_vline(aes(xintercept = Week[140], col="Batas Data Latih dengan Data Uji"), lty=2, lwd=.7)
+
+summary(Data$Average_Kurs)
+sd(Data$Average_Kurs)
+```
+
 
 
 Berdasarkan eksplorasi data, pola kurs jual terlihat berbentuk campuran (tren naik di awal, konstan di tengah, dan akhirnya mengalami trend kembali.
@@ -112,7 +127,7 @@ Pemeriksaan kestasioneran data dapat di cek menggunakan plot Autocorrelation Fun
 ```{r}
 library(forecast)
 par(mfrow=c(1,2))
-acf(kurs.train.ts)
+acf(kurs.train.ts,)
 pacf(kurs.train.ts)
 ```
 
@@ -325,8 +340,8 @@ H1 : Terjadi Heteroskedastisitas
 ```{r}
 ARIMA111 <- arima(kurs.diff, order=c(1,1,1), method="ML")
 aTSA::arch.test(ARIMA111)
-for (i in 1:15) {
-  ArchTest <- ArchTest(ARIMA111$residuals, lags=i, demean=TRUE)
+for (i in 1:20) {
+  ArchTest <- ArchTest(ARIMA111$residuals, lags=i)
   cat("P Value LM Test lag ke", i,"adalah" , ArchTest$p.value, "\n") }
 ```
 
@@ -608,7 +623,7 @@ yaitu model sebelum overfitting memilikiki nilai AIC paling minimum sehingga dip
 ### Uji Saphiro Wilk
 
 ```{r}
-shapiro.test(garchFit01@res)
+shapiro.test(garchSpec01)
 ```
 
 # Peramalan dengan Model ARIMA(1,1,1)-GARCH(0,1)
@@ -640,4 +655,7 @@ MAPE <- 1/T*sum(abs((dataframe$Aktual-dataframe$Ramalan)/dataframe$Aktual)*100)
 MAPE
 ```
 
-Diperoleh nilai MAPE sebesar **1.94%**. Hasil ini lebih baik dibandingkan nilai MAPE 1.99% hasil Pendugaan menggunakan ARIMA saja. Nilai MAPE ini dapat dikatakan bagus karena < 2%. 
+Diperoleh nilai MAPE sebesar **1.94%**. Hasil ini lebih baik dibandingkan nilai MAPE 1.99% hasil Pendugaan menggunakan ARIMA saja. Nilai MAPE ini dapat dikatakan bagus karena < 2%.
+
+
+
